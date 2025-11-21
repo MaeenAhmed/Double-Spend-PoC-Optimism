@@ -40,7 +40,7 @@ import (
 type OpNode struct {
 	mu sync.Mutex
 
-	id               stack.L2CLNodeID
+	id               stack.ComponentID
 	opNode           *opnode.Opnode
 	userRPC          string
 	interopEndpoint  string
@@ -48,7 +48,7 @@ type OpNode struct {
 	cfg              *config.Config
 	p                devtest.P
 	logger           log.Logger
-	el               *stack.L2ELNodeID // Optional: nil when using SyncTester
+	el               *stack.ComponentID // Optional: nil when using SyncTester
 	userProxy        *tcpproxy.Proxy
 	interopProxy     *tcpproxy.Proxy
 }
@@ -70,7 +70,7 @@ func (n *OpNode) hydrate(system stack.ExtensibleSystem) {
 		InteropJwtSecret: n.interopJwtSecret,
 	})
 	sysL2CL.SetLabel(match.LabelVendor, string(match.OpNode))
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
+	l2Net := system.L2Network(match.MatchIDL2Network(n.id))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
 	if n.el != nil {
 		for _, el := range l2Net.L2ELNodes() {
@@ -79,14 +79,14 @@ func (n *OpNode) hydrate(system stack.ExtensibleSystem) {
 				return
 			}
 		}
-		rbID := stack.RollupBoostNodeID(*n.el)
+		rbID := stack.ComponentID(*n.el)
 		for _, rb := range l2Net.RollupBoostNodes() {
 			if rb.ID() == rbID {
 				sysL2CL.(stack.LinkableL2CLNode).LinkRollupBoostNode(rb)
 				return
 			}
 		}
-		oprbID := stack.OPRBuilderNodeID(*n.el)
+		oprbID := stack.ComponentID(*n.el)
 		for _, oprb := range l2Net.OPRBuilderNodes() {
 			if oprb.ID() == oprbID {
 				sysL2CL.(stack.LinkableL2CLNode).LinkOPRBuilderNode(oprb)
@@ -160,9 +160,9 @@ func (n *OpNode) Stop() {
 	n.opNode = nil
 }
 
-func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithOpNode(l2CLID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack.ComponentID, l2ELID stack.ComponentID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), l2CLID))
 
 		require := p.Require()
 

@@ -27,12 +27,12 @@ import (
 type KonaNode struct {
 	mu sync.Mutex
 
-	id stack.L2CLNodeID
+	id stack.ComponentID
 
 	userRPC          string
 	interopEndpoint  string // warning: currently not fully supported
 	interopJwtSecret eth.Bytes32
-	el               stack.L2ELNodeID
+	el               stack.ComponentID
 
 	userProxy *tcpproxy.Proxy
 
@@ -63,7 +63,7 @@ func (k *KonaNode) hydrate(system stack.ExtensibleSystem) {
 		InteropJwtSecret: k.interopJwtSecret,
 	})
 	sysL2CL.SetLabel(match.LabelVendor, string(match.KonaNode))
-	l2Net := system.L2Network(stack.L2NetworkID(k.id.ChainID()))
+	l2Net := system.L2Network(stack.ComponentID(k.id.ChainID))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
 	sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(k.el))
 }
@@ -161,9 +161,9 @@ func (k *KonaNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
 
 var _ L2CLNode = (*KonaNode)(nil)
 
-func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithKonaNode(l2CLID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack.ComponentID, l2ELID stack.ComponentID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), l2CLID))
 
 		require := p.Require()
 
