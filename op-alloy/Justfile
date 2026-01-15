@@ -54,7 +54,7 @@ build *args='':
 
 # Checks the workspace with a cfg-check
 check:
-  cargo check -Zcheck-cfg --workspace
+  cargo +nightly check -Zcheck-cfg --workspace
 
 # Runs `cargo hack check` against the workspace
 hack:

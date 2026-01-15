@@ -8,9 +8,6 @@ GETH_BUILD=${GETH_BUILD:-"1.11.2-73b01f40"}
 BIN_DIR=${BIN_DIR:-"$HOME/bin"}
 
 PLATFORM="$(uname -s | awk '{print tolower($0)}')"
-if [ "$PLATFORM" != "linux" ] && [ "$PLATFORM" != "darwin" ]; then
-    EXT=".exe"
-fi
 
 main() {
     mkdir -p "$BIN_DIR"
