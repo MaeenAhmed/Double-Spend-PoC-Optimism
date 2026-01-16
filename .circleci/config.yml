@@ -62,6 +62,9 @@ parameters:
   kona_dispatch:
     type: boolean
     default: false
+  alloy_op_evm_dispatch:
+    type: boolean
+    default: false
   github-event-type:
     type: string
     default: "__not_set__"
@@ -3154,6 +3157,282 @@ jobs:
 
   ### END KONA JOBS ###
 
+  # ============================================================================
+  # Alloy-op-evm Jobs (migrated from alloy-op-evm/.github/workflows/ci.yml)
+  # ============================================================================
+
+  # Alloy-op-evm change check gate - halts if no alloy-op-evm folder changes detected
+  alloy-op-evm-change-check:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - check-changed:
+          patterns: alloy-op-evm
+          no_go_deps: "true"
+
+  # Alloy-op-evm tests (from ci.yml)
+  alloy-op-evm-cargo-tests:
+    parameters:
+      flags:
+        description: Feature flags for the test
+        type: string
+        default: ""
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: alloy-op-evm
+          prefix: alloy-op-evm-tests
+          profile: "release"
+          needs_clang: false
+      - install-cargo-binstall
+      - run:
+          name: Install nextest
+          command: |
+            command -v cargo-nextest >/dev/null || cargo binstall --no-confirm cargo-nextest
+      - run:
+          name: Run cargo tests <<parameters.flags>>
+          working_directory: alloy-op-evm
+          no_output_timeout: 30m
+          command: |
+            cargo nextest run --workspace <<parameters.flags>>
+      - rust-save-build-cache:
+          directory: alloy-op-evm
+          prefix: alloy-op-evm-tests
+          profile: "release"
+
+  # Alloy-op-evm doc tests (from ci.yml)
+  alloy-op-evm-doctest:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: alloy-op-evm
+          prefix: alloy-op-evm-doctest
+          needs_clang: false
+      - run:
+          name: Run doc tests
+          working_directory: alloy-op-evm
+          no_output_timeout: 30m
+          command: |
+            cargo test --workspace --doc
+            cargo test --all-features --workspace --doc
+      - rust-save-build-cache:
+          directory: alloy-op-evm
+          prefix: alloy-op-evm-doctest
+
+  # Alloy-op-evm wasm-unknown build (from ci.yml)
+  alloy-op-evm-wasm-unknown:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - rust-install-toolchain:
+          target: wasm32-unknown-unknown
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-hack
+          command: |
+            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
+      - run:
+          name: Build for wasm32-unknown-unknown
+          working_directory: alloy-op-evm
+          no_output_timeout: 30m
+          command: |
+            cargo hack build --workspace --ignore-unknown-features --features ws --target wasm32-unknown-unknown --no-default-features
+
+  # Alloy-op-evm wasm-wasi build (from ci.yml)
+  alloy-op-evm-wasm-wasi:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - rust-install-toolchain:
+          target: wasm32-wasip1
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-hack
+          command: |
+            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
+      - run:
+          name: Build for wasm32-wasip1
+          working_directory: alloy-op-evm
+          no_output_timeout: 30m
+          command: |
+            cargo hack build --workspace --target wasm32-wasip1
+
+  # Alloy-op-evm feature checks (from ci.yml)
+  alloy-op-evm-feature-checks:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: alloy-op-evm
+          prefix: alloy-op-evm-feature-checks
+          needs_clang: false
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-hack
+          command: |
+            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
+      - run:
+          name: Check feature powerset
+          working_directory: alloy-op-evm
+          no_output_timeout: 30m
+          command: |
+            cargo hack check --feature-powerset --depth 1
+
+  # Alloy-op-evm check no_std (from ci.yml)
+  alloy-op-evm-check-no-std:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - rust-install-toolchain:
+          target: riscv32imac-unknown-none-elf
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-hack
+          command: |
+            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
+      - run:
+          name: Check no_std compatibility
+          working_directory: alloy-op-evm
+          no_output_timeout: 30m
+          command: |
+            ./scripts/check_no_std.sh
+
+  # Alloy-op-evm clippy (from ci.yml)
+  alloy-op-evm-clippy:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: alloy-op-evm
+          prefix: alloy-op-evm-clippy
+          features: "all"
+          needs_clang: false
+      - rust-install-toolchain:
+          channel: nightly
+          components: clippy
+      - run:
+          name: Run clippy
+          working_directory: alloy-op-evm
+          no_output_timeout: 30m
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: |
+            cargo +nightly clippy --workspace --all-targets --all-features
+
+  # Alloy-op-evm docs build (from ci.yml)
+  alloy-op-evm-docs:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: alloy-op-evm
+          prefix: alloy-op-evm-docs
+          features: "all"
+          needs_clang: false
+      - rust-install-toolchain:
+          channel: nightly
+      - run:
+          name: Build documentation
+          working_directory: alloy-op-evm
+          no_output_timeout: 30m
+          environment:
+            RUSTDOCFLAGS: --cfg docsrs -D warnings --show-type-layout --generate-link-to-definition -Zunstable-options
+          command: |
+            cargo doc --workspace --all-features --no-deps --document-private-items
+
+  # Alloy-op-evm fmt check (from ci.yml)
+  alloy-op-evm-fmt:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - rust-install-toolchain:
+          channel: nightly
+          components: rustfmt
+      - run:
+          name: Check formatting
+          working_directory: alloy-op-evm
+          command: |
+            cargo fmt --all --check
+
+  # Alloy-op-evm deny (from ci.yml)
+  alloy-op-evm-deny:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-deny
+          command: |
+            command -v cargo-deny >/dev/null || cargo binstall --no-confirm cargo-deny
+      - run:
+          name: Run cargo deny
+          working_directory: alloy-op-evm
+          command: |
+            cargo deny check
+
+  # Alloy-op-evm zepter (from ci.yml)
+  alloy-op-evm-zepter:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - install-cargo-binstall
+      - run:
+          name: Install zepter
+          command: |
+            command -v zepter >/dev/null || cargo binstall --no-confirm zepter
+            zepter --version
+      - run:
+          name: Check feature propagation
+          working_directory: alloy-op-evm
+          command: |
+            zepter run check
+
+  ### END ALLOY-OP-EVM JOBS ###
+
   publish-cannon-prestates:
     resource_class: medium
     docker:
@@ -4713,3 +4992,89 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-gcr
+
+  # ============================================================================
+  # Alloy-op-evm Workflows (migrated from alloy-op-evm/.github/workflows/ci.yml)
+  # ============================================================================
+
+  # Alloy-op-evm main CI workflow (runs on push to main, pull_request)
+  # Only runs when changes are detected in the alloy-op-evm folder
+  alloy-op-evm-ci:
+    when:
+      or:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - and:
+            - equal: [true, <<pipeline.parameters.alloy_op_evm_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      # Gate job - checks if alloy-op-evm folder has changes, halts workflow if not
+      - alloy-op-evm-change-check:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Test jobs with different feature flags
+      - alloy-op-evm-cargo-tests:
+          context: &alloy-op-evm-job-context
+            - circleci-repo-readonly-authenticated-github-token
+          requires: &alloy-op-evm-job-requires
+            - alloy-op-evm-change-check
+          name: alloy-op-evm-test-no-default-features
+          flags: "--no-default-features"
+      - alloy-op-evm-cargo-tests:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+          name: alloy-op-evm-test-default
+          flags: ""
+      - alloy-op-evm-cargo-tests:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+          name: alloy-op-evm-test-all-features
+          flags: "--all-features"
+
+      # Doc tests
+      - alloy-op-evm-doctest:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+
+      # WASM builds
+      - alloy-op-evm-wasm-unknown:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+      - alloy-op-evm-wasm-wasi:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+
+      # Feature checks
+      - alloy-op-evm-feature-checks:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+
+      # no_std check
+      - alloy-op-evm-check-no-std:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+
+      # Linting
+      - alloy-op-evm-clippy:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+
+      # Documentation
+      - alloy-op-evm-docs:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+
+      # Formatting
+      - alloy-op-evm-fmt:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+
+      # Dependencies check
+      - alloy-op-evm-deny:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
+
+      # Feature propagation check
+      - alloy-op-evm-zepter:
+          context: *alloy-op-evm-job-context
+          requires: *alloy-op-evm-job-requires
